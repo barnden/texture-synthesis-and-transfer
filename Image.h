@@ -30,6 +30,13 @@ public:
     {
         return Coordinate { *this } += rhs;
     }
+
+    friend std::ostream& operator<<(std::ostream& stream, Coordinate const& coord)
+    {
+        stream << "(" << coord.x << ", " << coord.y << ')';
+
+        return stream;
+    }
 };
 
 union RGB {
@@ -94,6 +101,13 @@ union RGBA {
         ch.g = g;
         ch.b = b;
         ch.a = a;
+    }
+
+    friend std::ostream& operator<<(std::ostream& stream, RGBA const& rgba)
+    {
+        stream << "RGBA(" << +rgba.ch.r << ", " << +rgba.ch.g << ", " << +rgba.ch.b << ", " << +rgba.ch.a << ')';
+
+        return stream;
     }
 };
 
