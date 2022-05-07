@@ -26,7 +26,7 @@ public:
         return *this;
     }
 
-    Coordinate operator+(Coordinate const& rhs)
+    Coordinate operator+(Coordinate const& rhs) const
     {
         return Coordinate { *this } += rhs;
     }
