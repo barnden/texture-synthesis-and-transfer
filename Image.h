@@ -171,7 +171,6 @@ public:
 
     // clang-format off
     void set_pixel_rgba(Coordinate coord, RGBA color) {
-        // 0xRRGGBBAA
         auto y = coord.y;
         auto x = coord.x;
 
@@ -185,7 +184,6 @@ public:
     }
 
     void set_pixel(Coordinate coord, RGBA rgb) {
-        // 0xRRGGBB
         auto y = coord.y;
         auto x = coord.x;
 
