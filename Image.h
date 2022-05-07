@@ -103,6 +103,18 @@ union RGBA {
         ch.a = a;
     }
 
+    // clang-format off
+    friend uint64_t absolute_difference(RGBA const& first, RGBA const& second) {
+        auto acc = 0ll;
+
+        acc += (first.ch.r - second.ch.r)
+             + (first.ch.g - second.ch.g)
+             + (first.ch.b - second.ch.b);
+
+        return std::abs(acc);
+    }
+    // clang-format on
+
     friend std::ostream& operator<<(std::ostream& stream, RGBA const& rgba)
     {
         stream << "RGBA(" << +rgba.ch.r << ", " << +rgba.ch.g << ", " << +rgba.ch.b << ", " << +rgba.ch.a << ')';
@@ -279,14 +291,14 @@ public:
         free(rows);
     }
 
-    void write(bool alpha = true)
+    void write(bool alpha = true) const
     {
         assert(m_filename.size());
 
         write(m_filename, alpha);
     }
 
-    void write(std::string const& filename, bool alpha = true)
+    void write(std::string const& filename, bool alpha = true) const
     {
         auto file = fopen(filename.c_str(), "wb");
         assert(file);
