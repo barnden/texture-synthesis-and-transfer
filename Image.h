@@ -104,14 +104,16 @@ union RGBA {
     }
 
     // clang-format off
-    friend uint64_t absolute_difference(RGBA const& first, RGBA const& second) {
+    friend uint64_t squared_difference(RGBA const& first, RGBA const& second) {
         auto acc = 0ll;
 
         acc += (first.ch.r - second.ch.r)
              + (first.ch.g - second.ch.g)
              + (first.ch.b - second.ch.b);
 
-        return std::abs(acc);
+        acc = std::abs(acc);
+
+        return acc * acc;
     }
     // clang-format on
 
@@ -203,12 +205,21 @@ public:
         assert(y >= 0 && y < m_height);
         assert(x >= 0 && x < m_width);
 
-        return (static_cast<uint32_t>(m_image[0][y][x]) << 24) |
-               (static_cast<uint32_t>(m_image[1][y][x]) << 16) |
-               (static_cast<uint32_t>(m_image[2][y][x]) <<  8) |
-                static_cast<uint32_t>(m_image[3][y][x]);
+        auto color = RGBA {};
+
+        color.ch.r = m_image[0][y][x];
+        color.ch.g = m_image[1][y][x];
+        color.ch.b = m_image[2][y][x];
+        color.ch.a = m_image[3][y][x];
+
+        return color;
     }
     // clang-format on
+
+    RGBA operator[](Coordinate coord) const
+    {
+        return get_pixel(coord);
+    }
 
     void open()
     {
