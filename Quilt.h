@@ -254,8 +254,8 @@ public:
         m_overlap = overlap_sz;
         m_chunk = m_patch - m_overlap;
 
-        auto max_chunk_y = (m_quilt.height() / m_chunk) + 1;
-        auto max_chunk_x = (m_quilt.width() / m_chunk) + 1;
+        auto max_chunk_y = m_quilt.height() / m_chunk + (m_quilt.height() % m_chunk != 0);
+        auto max_chunk_x = m_quilt.width() / m_chunk + (m_quilt.width() % m_chunk != 0);
 
         for (auto u = 0; u < max_chunk_y; u++) {
             auto y = u * m_chunk;
