@@ -269,7 +269,7 @@ public:
             png_set_tRNS_to_alpha(png);
 
         if (m_color_type == PNG_COLOR_TYPE_RGB || m_color_type == PNG_COLOR_TYPE_GRAY || m_color_type == PNG_COLOR_TYPE_PALETTE)
-            png_set_filter(png, 0xFF, PNG_FILLER_AFTER);
+            png_set_filler(png, 0xFF, PNG_FILLER_AFTER);
 
         if (m_color_type == PNG_COLOR_TYPE_GRAY || m_color_type == PNG_COLOR_TYPE_GRAY_ALPHA)
             png_set_gray_to_rgb(png);
