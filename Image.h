@@ -11,12 +11,18 @@
 
 class Coordinate {
 public:
-    int x;
-    int y;
+    int x = 0;
+    int y = 0;
+
+    Coordinate() {};
 
     Coordinate(int x, int y)
         : x(x)
         , y(y) {};
+
+    Coordinate(int x)
+        : x(x)
+        , y(x) {};
 
     Coordinate& operator+=(Coordinate const& rhs)
     {
