@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <queue>
 #include <random>
 #include <vector>
