@@ -39,7 +39,7 @@ public:
 
     friend std::ostream& operator<<(std::ostream& stream, Coordinate const& coord)
     {
-        stream << "(" << coord.x << ", " << coord.y << ')';
+        stream << '(' << coord.x << ", " << coord.y << ')';
 
         return stream;
     }
@@ -140,7 +140,8 @@ private:
     png_byte m_color_type {};
     png_byte m_bit_depth {};
 
-    std::array<std::vector<std::vector<png_byte>>, 4> m_image;
+    // std::array<std::vector<std::vector<png_byte>>, 4> m_image;
+    std::vector<RGBA> m_image;
 
 public:
     Image() {};
@@ -152,8 +153,7 @@ public:
         m_color_type = PNG_COLOR_TYPE_RGBA;
         m_bit_depth = 8;
 
-        for (auto&& channel : m_image)
-            channel = std::vector<std::vector<png_byte>>(m_height, std::vector<png_byte>(m_width, 0));
+        m_image = std::vector<RGBA>(m_height * m_width, 0);
     }
 
     Image(std::string const& filename)
@@ -162,70 +162,34 @@ public:
         open();
     }
 
-    std::vector<std::vector<png_byte>>& operator[](int channel)
+    RGBA& operator[](int x, int y)
     {
-        assert(channel >= 0 && channel < 4);
+        assert(y >= 0 && y < m_height);
+        assert(x >= 0 && x < m_width);
 
-        return m_image[channel];
+        return m_image[x + y * m_width];
     }
 
-    std::vector<std::vector<png_byte>>& r() { return m_image[0]; }
-    std::vector<std::vector<png_byte>>& g() { return m_image[1]; }
-    std::vector<std::vector<png_byte>>& b() { return m_image[2]; }
-    std::vector<std::vector<png_byte>>& a() { return m_image[3]; }
+    RGBA& operator[](Coordinate const& coord)
+    {
+        return (*this)[coord.x, coord.y];
+    }
+
+    RGBA const& operator[](int x, int y) const
+    {
+        assert(y >= 0 && y < m_height);
+        assert(x >= 0 && x < m_width);
+
+        return m_image[x + y * m_width];
+    }
+
+    RGBA const& operator[](Coordinate const& coord) const
+    {
+        return (*this)[coord.x, coord.y];
+    }
 
     int height() const { return m_height; }
     int width() const { return m_width; }
-
-    // clang-format off
-    void set_pixel_rgba(Coordinate coord, RGBA color) {
-        auto y = coord.y;
-        auto x = coord.x;
-
-        assert(y >= 0 && y < m_height);
-        assert(x >= 0 && x < m_width);
-
-        m_image[0][y][x] = color.ch.r;
-        m_image[1][y][x] = color.ch.g;
-        m_image[2][y][x] = color.ch.b;
-        m_image[3][y][x] = color.ch.a;
-    }
-
-    void set_pixel(Coordinate coord, RGBA rgb) {
-        auto y = coord.y;
-        auto x = coord.x;
-
-        assert(y >= 0 && y < m_height);
-        assert(x >= 0 && x < m_width);
-
-        m_image[0][y][x] = rgb.ch.r;
-        m_image[1][y][x] = rgb.ch.g;
-        m_image[2][y][x] = rgb.ch.b;
-        m_image[3][y][x] = 0xFF;
-    }
-
-    RGBA get_pixel(Coordinate coord) const {
-        auto y = coord.y;
-        auto x = coord.x;
-
-        assert(y >= 0 && y < m_height);
-        assert(x >= 0 && x < m_width);
-
-        auto color = RGBA {};
-
-        color.ch.r = m_image[0][y][x];
-        color.ch.g = m_image[1][y][x];
-        color.ch.b = m_image[2][y][x];
-        color.ch.a = m_image[3][y][x];
-
-        return color;
-    }
-    // clang-format on
-
-    RGBA operator[](Coordinate coord) const
-    {
-        return get_pixel(coord);
-    }
 
     void open()
     {
@@ -287,17 +251,19 @@ public:
 
         png_destroy_read_struct(&png, &info, NULL);
 
-        for (auto&& channel : m_image)
-            channel = std::vector<std::vector<png_byte>>(m_height, std::vector<png_byte>(m_width, 0));
+        m_image = std::vector<RGBA>(m_height * m_width, 0);
 
         for (auto i = 0; i < m_height; i++) {
             auto row = rows[i];
 
             for (auto j = 0; j < m_width; j++) {
-                auto pixel = &(row[j * 4]);
+                auto const* const color = &(row[j * 4]);
+                auto& pixel = m_image[j + i * m_width];
 
-                for (auto k = 0; k < 4; k++)
-                    m_image[k][i][j] = pixel[k];
+                pixel.ch.r = color[0];
+                pixel.ch.g = color[1];
+                pixel.ch.b = color[2];
+                pixel.ch.a = color[3];
             }
 
             free(row);
@@ -337,7 +303,7 @@ public:
         if (!alpha)
             png_set_filler(png, 0, PNG_FILLER_AFTER);
 
-        assert(m_image[0].size());
+        assert(m_image.size());
 
         auto rows = (png_bytep*)malloc(sizeof(png_bytep) * m_height);
 
@@ -348,10 +314,13 @@ public:
             auto row = rows[i];
 
             for (auto j = 0; j < m_width; j++) {
-                auto pixel = &(row[j * 4]);
+                auto const& color = m_image[j + i * m_width];
+                auto* const pixel = &(row[j * 4]);
 
-                for (auto k = 0; k < 4; k++)
-                    pixel[k] = m_image[k][i][j];
+                pixel[0] = color.ch.r;
+                pixel[1] = color.ch.g;
+                pixel[2] = color.ch.b;
+                pixel[3] = color.ch.a;
             }
         }
 

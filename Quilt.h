@@ -45,8 +45,8 @@ public:
 
         for (auto i = 0; i < max_x - quilt.x; i++)
             for (auto j = 0; j < max_y - quilt.y; j++) {
-                auto color = m_texture[texture + Coordinate { i, j }];
-                m_quilt.set_pixel(quilt + Coordinate { i, j }, color);
+                auto offset = Coordinate { i, j };
+                m_quilt[quilt + offset] = m_texture[texture + offset];
             }
     }
 
@@ -61,8 +61,8 @@ public:
                 if (!mask[i][j])
                     continue;
 
-                auto color = m_texture[texture + Coordinate { i, j }];
-                m_quilt.set_pixel(quilt + Coordinate { i, j }, color);
+                auto offset = Coordinate { i, j };
+                m_quilt[quilt + offset] = m_texture[texture + offset];
             }
     }
 
