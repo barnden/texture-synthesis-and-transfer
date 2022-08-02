@@ -74,11 +74,37 @@ public:
         return { p, q };
     }
 
-    template <typename Metric>
-    [[gnu::flatten]] Coordinate random_overlapping_patch(Coordinate const& quxel, int K, Metric compute_metric) const
+    template <bool subtract, typename Metric>
+    [[gnu::always_inline]] void compute_ssd(
+        Metric&& compute_metric,
+        auto& ssd,
+        auto const& quxel,
+        auto const& patch,
+        auto const init_u,
+        auto const init_v) const
     {
-        auto top_overlap = quxel.y >= m_chunk;
-        auto left_overlap = quxel.x >= m_chunk;
+        auto const max_u = std::min(init_u, m_quilt.width() - quxel.x);
+        auto const max_v = std::min(init_v, m_quilt.height() - quxel.y);
+
+        for (auto u = 0; u < max_u; u++) {
+            for (auto v = 0; v < max_v; v++) {
+                auto const value = compute_metric(quxel, patch, { u, v });
+
+                if constexpr (subtract) {
+                    ssd -= value;
+                } else {
+                    ssd += value;
+                }
+            }
+        }
+    }
+
+    template <typename Metric>
+    [[gnu::flatten]] Coordinate random_overlapping_patch(Coordinate const& quxel, int K, Metric&& compute_metric) const
+    {
+        auto const top_overlap = quxel.y >= m_chunk;
+        auto const left_overlap = quxel.x >= m_chunk;
+        auto const corner_overlap = left_overlap && top_overlap;
 
         auto queue = std::priority_queue<SSD, std::vector<SSD>, std::less<SSD>> {};
 
@@ -87,32 +113,14 @@ public:
                 auto patch = Coordinate { x, y };
                 auto ssd = 0;
 
-                if (left_overlap) {
-                    auto max_u = std::min(m_overlap, m_quilt.width() - quxel.x);
-                    auto max_v = std::min(m_patch, m_quilt.height() - quxel.y);
+                if (left_overlap)
+                    compute_ssd<false>(compute_metric, ssd, quxel, patch, m_overlap, m_patch);
 
-                    for (auto u = 0; u < max_u; u++)
-                        for (auto v = 0; v < max_v; v++)
-                            ssd += compute_metric(quxel, patch, { u, v });
-                }
+                if (top_overlap)
+                    compute_ssd<false>(compute_metric, ssd, quxel, patch, m_patch, m_overlap);
 
-                if (top_overlap) {
-                    auto max_u = std::min(m_patch, m_quilt.width() - quxel.x);
-                    auto max_v = std::min(m_overlap, m_quilt.height() - quxel.y);
-
-                    for (auto u = 0; u < max_u; u++)
-                        for (auto v = 0; v < max_v; v++)
-                            ssd += compute_metric(quxel, patch, { u, v });
-                }
-
-                if (left_overlap && top_overlap) {
-                    auto max_u = std::min(m_overlap, m_quilt.width() - quxel.x);
-                    auto max_v = std::min(m_overlap, m_quilt.height() - quxel.y);
-
-                    for (auto u = 0; u < max_u; u++)
-                        for (auto v = 0; v < max_v; v++)
-                            ssd -= compute_metric(quxel, patch, { u, v });
-                }
+                if (corner_overlap)
+                    compute_ssd<true>(compute_metric, ssd, quxel, patch, m_overlap, m_overlap);
 
                 if (queue.size() < K || queue.top().ssd > ssd) {
                     if (queue.size() == K)
