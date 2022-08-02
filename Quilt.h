@@ -33,6 +33,8 @@ public:
     static constexpr int SYNTHESIS_RANDOM = 1;
     static constexpr int SYNTHESIS_SIMPLE = 2;
     static constexpr int SYNTHESIS_CUT = 3;
+    static constexpr bool SSD_USE_ADDITION = false;
+    static constexpr bool SSD_USE_SUBTRACTION = true;
 
     Quilt(Image const& texture, int width, int height)
         : m_quilt(width, height)
@@ -74,7 +76,7 @@ public:
         return { p, q };
     }
 
-    template <bool subtract, typename Metric>
+    template <bool use_subtraction, typename Metric>
     [[gnu::always_inline]] void compute_ssd(
         Metric&& compute_metric,
         auto& ssd,
@@ -90,7 +92,7 @@ public:
             for (auto v = 0; v < max_v; v++) {
                 auto const value = compute_metric(quxel, patch, { u, v });
 
-                if constexpr (subtract) {
+                if constexpr (use_subtraction) {
                     ssd -= value;
                 } else {
                     ssd += value;
@@ -114,13 +116,13 @@ public:
                 auto ssd = 0;
 
                 if (left_overlap)
-                    compute_ssd<false>(compute_metric, ssd, quxel, patch, m_overlap, m_patch);
+                    compute_ssd<SSD_USE_ADDITION>(compute_metric, ssd, quxel, patch, m_overlap, m_patch);
 
                 if (top_overlap)
-                    compute_ssd<false>(compute_metric, ssd, quxel, patch, m_patch, m_overlap);
+                    compute_ssd<SSD_USE_ADDITION>(compute_metric, ssd, quxel, patch, m_patch, m_overlap);
 
                 if (corner_overlap)
-                    compute_ssd<true>(compute_metric, ssd, quxel, patch, m_overlap, m_overlap);
+                    compute_ssd<SSD_USE_SUBTRACTION>(compute_metric, ssd, quxel, patch, m_overlap, m_overlap);
 
                 if (queue.size() < K || queue.top().ssd > ssd) {
                     if (queue.size() == K)
@@ -284,7 +286,7 @@ public:
     }
 
     template <size_t flag>
-    void synthesize(int patch_sz, int overlap_sz, int K)
+    [[gnu::flatten]] void synthesize(int patch_sz, int overlap_sz, int K)
     {
         assert(patch_sz > overlap_sz);
 
