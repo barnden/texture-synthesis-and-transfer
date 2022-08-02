@@ -153,7 +153,7 @@ public:
         return random_overlapping_patch(quxel, K, compute_ssd);
     }
 
-    [[gnu::flatten]] auto find_seam(
+    [[gnu::flatten]] std::vector<Coordinate> find_seam(
         Coordinate quxel,
         Coordinate texel,
         Coordinate overlap,
@@ -171,6 +171,9 @@ public:
         if (!vertical_seam)
             std::swap(seam_height, seam_width);
 
+        if (seam_height == 0 || seam_width == 0)
+            return {};
+
         auto seam = std::vector<Coordinate>(seam_height);
 
         auto energy = std::vector<std::vector<uint64_t>>(seam_height, std::vector<uint64_t>(seam_width, 0));
@@ -186,7 +189,6 @@ public:
                 energy[i][j] = squared_difference(quilt, texture);
             }
         }
-
         for (auto j = 0; j < seam_width; j++)
             matrix[0][j].first = energy[0][j];
 
@@ -243,18 +245,20 @@ public:
             auto overlap = Coordinate { m_overlap, max_y - quxel.y };
             auto seam = find_seam(quxel, texel, overlap);
 
-            for (auto&& pixel : seam)
-                for (auto i = 0; i <= pixel.x; i++)
-                    mask[i][pixel.y] = 0;
+            if (seam.size())
+                for (auto&& pixel : seam)
+                    for (auto i = 0; i <= pixel.x; i++)
+                        mask[i][pixel.y] = 0;
         }
 
         if (quxel.y >= m_chunk) {
             auto overlap = Coordinate { max_x - quxel.x, m_overlap };
             auto seam = find_seam(quxel, texel, overlap, false);
 
-            for (auto&& pixel : seam)
-                for (auto i = 0; i <= pixel.y; i++)
-                    mask[pixel.x][i] = 0;
+            if (seam.size())
+                for (auto&& pixel : seam)
+                    for (auto i = 0; i <= pixel.y; i++)
+                        mask[pixel.x][i] = 0;
         }
 
         return mask;
