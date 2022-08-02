@@ -146,12 +146,16 @@ public:
     }
 
     [[gnu::flatten]] auto find_seam(
-        Coordinate quxel, Coordinate texel,
+        Coordinate quxel,
+        Coordinate texel,
         Coordinate overlap,
         bool vertical_seam = true) const
     {
         auto max_quxel = quxel + overlap;
         auto max_texel = texel + overlap;
+
+        max_quxel.x = std::min(max_quxel.x, m_quilt.width());
+        max_quxel.y = std::min(max_quxel.y, m_quilt.height());
 
         auto seam_height = max_quxel.y - quxel.y;
         auto seam_width = max_quxel.x - quxel.x;
@@ -164,7 +168,7 @@ public:
         auto energy = std::vector<std::vector<uint64_t>>(seam_height, std::vector<uint64_t>(seam_width, 0));
         auto matrix = std::vector<std::vector<std::pair<int, int>>>(seam_height, std::vector<std::pair<int, int>>(seam_width, std::make_pair(0, 0)));
 
-        for (auto i = 0; i < seam_height; i++)
+        for (auto i = 0; i < seam_height; i++) {
             for (auto j = 0; j < seam_width; j++) {
                 auto coord = vertical_seam ? Coordinate { j, i } : Coordinate { i, j };
 
@@ -173,6 +177,7 @@ public:
 
                 energy[i][j] = squared_difference(quilt, texture);
             }
+        }
 
         for (auto j = 0; j < seam_width; j++)
             matrix[0][j].first = energy[0][j];
