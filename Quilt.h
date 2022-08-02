@@ -134,8 +134,8 @@ public:
         for (auto i = 0; i < it; i++)
             queue.pop();
 
-#if 0
-        std::cout << "Match [badness: " << queue.top().ssd << "] Texture" << queue.top().coord << " -> Quilt" << quilt << '\n';
+#ifdef DBGLN
+        std::cout << "Match [badness: " << queue.top().ssd << "] Texture" << queue.top().coord << " -> Quilt" << quxel << '\n';
 #endif
 
         return queue.top().coord;
