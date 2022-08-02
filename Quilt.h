@@ -264,7 +264,27 @@ public:
         return mask;
     }
 
-    [[gnu::flatten]] void synthesize(int patch_sz, int overlap_sz, int K, int flag)
+    template <size_t flag>
+    void create_patch_at(Coordinate quxel, Coordinate max, int K)
+    {
+        if constexpr (flag == SYNTHESIS_RANDOM) {
+            copy_patch(quxel, random_patch());
+        } else {
+            auto patch = random_overlapping_patch(quxel, K);
+
+            if constexpr (flag == SYNTHESIS_SIMPLE) {
+                copy_patch(quxel, patch);
+            }
+
+            if constexpr (flag == SYNTHESIS_CUT) {
+                auto mask = find_mask(quxel, patch, max.x, max.y);
+                copy_patch(quxel, patch, mask);
+            }
+        }
+    }
+
+    template <size_t flag>
+    void synthesize(int patch_sz, int overlap_sz, int K)
     {
         assert(patch_sz > overlap_sz);
 
@@ -283,21 +303,22 @@ public:
                 auto x = v * m_chunk;
                 auto max_x = std::min(m_quilt.width() - 1, x + m_patch);
 
-                auto quxel = Coordinate { x, y };
-
-                if ((u || v) ^ (flag == SYNTHESIS_RANDOM)) {
-                    auto patch = random_overlapping_patch(quxel, K);
-
-                    if (flag == SYNTHESIS_CUT) {
-                        auto mask = find_mask(quxel, patch, max_x, max_y);
-                        copy_patch(quxel, patch, mask);
-                    } else {
-                        copy_patch(quxel, patch);
-                    }
-                } else {
-                    copy_patch(quxel, random_patch());
-                }
+                create_patch_at<flag>({ x, y }, { max_x, max_y }, K);
             }
+        }
+    }
+
+    [[gnu::flatten]] void synthesize(int patch_sz, int overlap_sz, int K, int flag = SYNTHESIS_CUT)
+    {
+        switch (flag) {
+        case SYNTHESIS_RANDOM:
+            return synthesize<SYNTHESIS_RANDOM>(patch_sz, overlap_sz, K);
+
+        case SYNTHESIS_SIMPLE:
+            return synthesize<SYNTHESIS_SIMPLE>(patch_sz, overlap_sz, K);
+
+        default:
+            return synthesize<SYNTHESIS_CUT>(patch_sz, overlap_sz, K);
         }
     }
 
