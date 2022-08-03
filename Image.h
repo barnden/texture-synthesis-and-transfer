@@ -20,8 +20,7 @@ private:
     png_byte m_color_type {};
     png_byte m_bit_depth {};
 
-    // std::array<std::vector<std::vector<png_byte>>, 4> m_image;
-    std::vector<RGBA> m_image;
+    multivec<RGBA> m_image;
 
 public:
     Image() {};
@@ -33,7 +32,7 @@ public:
         m_color_type = PNG_COLOR_TYPE_RGBA;
         m_bit_depth = 8;
 
-        m_image = std::vector<RGBA>(m_height * m_width, 0);
+        m_image = decltype(m_image)(m_height, m_width, 0);
     }
 
     Image(std::string const& filename)
@@ -131,7 +130,7 @@ public:
 
         png_destroy_read_struct(&png, &info, NULL);
 
-        m_image = std::vector<RGBA>(m_height * m_width, 0);
+        m_image = decltype(m_image)(m_height, m_width, 0);
 
         for (auto i = 0; i < m_height; i++) {
             auto row = rows[i];
