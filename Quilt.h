@@ -167,7 +167,7 @@ public:
         return queue.top().coord;
     }
 
-    [[gnu::flatten]] Coordinate random_overlapping_patch(Coordinate const& quxel, int K) const
+    [[gnu::flatten]] virtual Coordinate random_overlapping_patch(Coordinate const& quxel, int K) const
     {
         auto compute_ssd = [this](Coordinate const& quxel, Coordinate const& texel, Coordinate const& coord) {
             auto const& texture = m_texture[texel + coord];
