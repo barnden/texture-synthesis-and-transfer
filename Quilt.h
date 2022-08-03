@@ -30,7 +30,7 @@ protected:
     std::mutex m_queue_mtx;
     std::condition_variable m_queue_convar;
 
-    std::deque<int> m_status;
+    multivec<int> m_status;
     std::mutex m_status_mtx;
     size_t m_total_completed {};
     bool m_completed {};
@@ -362,7 +362,7 @@ public:
             {
                 auto lock = std::unique_lock<std::mutex> { m_status_mtx };
 
-                auto& status = m_status[chunk.x + chunk.y * m_max_chunk_x];
+                auto& status = m_status[chunk];
 
                 // Avoid working on in-progress or completed patches
                 if (status != -1)
@@ -392,7 +392,7 @@ public:
             {
                 auto lock = std::unique_lock<std::mutex>(m_status_mtx);
 
-                m_status[chunk.x + chunk.y * m_max_chunk_x] = 1;
+                m_status[chunk] = 1;
                 m_total_completed++;
             }
 
@@ -437,7 +437,7 @@ public:
         m_max_chunk_y = (m_quilt.height() / m_chunk) + (m_quilt.height() % m_chunk != 0);
         m_max_chunk_x = (m_quilt.width() / m_chunk) + (m_quilt.width() % m_chunk != 0);
 
-        m_status = std::deque<int>(m_max_chunk_x * m_max_chunk_y, -1);
+        m_status = decltype(m_status)(m_max_chunk_x, m_max_chunk_y, -1);
 
         auto const max_threads = std::thread::hardware_concurrency();
         m_pool = decltype(m_pool) {};
@@ -468,7 +468,7 @@ public:
 
         {
             auto lock = std::unique_lock<std::mutex>(m_status_mtx);
-            status = m_status[patch.x + patch.y * m_max_chunk_x] == 1;
+            status = m_status[patch] == 1;
         }
 
         return status;
