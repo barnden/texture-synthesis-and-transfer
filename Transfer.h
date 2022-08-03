@@ -109,20 +109,24 @@ public:
         m_max_chunk_y = (m_quilt.height() / m_chunk) + (m_quilt.height() % m_chunk != 0);
         m_max_chunk_x = (m_quilt.width() / m_chunk) + (m_quilt.width() % m_chunk != 0);
 
-        for (auto u = 0; u < m_max_chunk_y; u++) {
-            auto y = u * m_chunk;
-            auto max_y = std::min(m_quilt.height() - 1, y + m_patch);
+        m_status = decltype(m_status)(m_max_chunk_x, m_max_chunk_y, -1);
+        m_completed = false;
+        m_total_completed = 0;
 
-            for (auto v = 0; v < m_max_chunk_x; v++) {
-                auto x = v * m_chunk;
-                auto max_x = std::min(m_quilt.width() - 1, x + m_patch);
+        m_queue = decltype(m_queue) {}; // Clear queue
+        m_queue.push({ 0, 0 });
 
-                auto quxel = Coordinate { x, y };
+        auto const max_threads = std::thread::hardware_concurrency();
+        m_pool = decltype(m_pool) {};
 
-                if (u || v)
-                    create_patch_at<SYNTHESIS_CUT>(quxel, { max_x, max_y }, K);
-            }
-        }
+        for (auto i = 0; i < max_threads; i++)
+            m_pool.push_back(std::thread([this, K] -> void {
+                return worker<SYNTHESIS_CUT>(K, false);
+            }));
+
+        while (is_busy()) { };
+
+        cleanup();
     }
 
     [[gnu::flatten]] void synthesize(int patch_sz, int N, int K)
