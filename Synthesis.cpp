@@ -21,7 +21,7 @@ int main(int argc, char** argv)
     auto width = 384;
     auto height = 384;
 
-    option longopts[10] = {
+    option longopts[11] = {
         option { "texture", 1, NULL, 't' },
         option { "constraint", 1, NULL, 'c' },
         option { "outfile", 1, NULL, 'O' },
@@ -31,12 +31,13 @@ int main(int argc, char** argv)
         option { "samples", 1, NULL, 'K' },
         option { "width", 1, NULL, 'w' },
         option { "height", 1, NULL, 'h' },
+        option { "depth", 1, NULL, 'd' },
         NULL
     };
 
     auto option = '\0';
 
-    while ((option = getopt_long(argc, argv, "t:c:O:m:p:o:K:w:h:", longopts, 0)) != -1) {
+    while ((option = getopt_long(argc, argv, "t:c:O:m:p:o:K:w:h:d:", longopts, 0)) != -1) {
         switch (option) {
         case 't':
             texture_path = { optarg };
@@ -93,7 +94,6 @@ int main(int argc, char** argv)
         auto quilt = Quilt(texture, width, height);
 
         quilt.synthesize(patch_size, overlap, samples, method);
-
         quilt.write(outfile);
     } else {
         auto constraint = Image(constraint_path);
