@@ -79,6 +79,8 @@ public:
     static constexpr int SYNTHESIS_CUT = 3;
     static constexpr bool SSD_USE_ADDITION = false;
     static constexpr bool SSD_USE_SUBTRACTION = true;
+    static constexpr bool VERTICAL_SEAM = true;
+    static constexpr bool HORIZONTAL_SEAM = false;
 
     Quilt(Image const& texture, int width, int height)
         : m_quilt(width, height)
@@ -96,15 +98,15 @@ public:
             }
     }
 
-    template <typename Mask>
-    [[gnu::flatten, gnu::hot]] void copy_patch(Coordinate quilt, Coordinate texture, Mask mask)
+    template<typename T>
+    [[gnu::flatten, gnu::hot]] void copy_patch(Coordinate quilt, Coordinate texture, multivec<T> mask)
     {
         auto max_y = std::min(m_quilt.height(), quilt.y + m_patch);
         auto max_x = std::min(m_quilt.width(), quilt.x + m_patch);
 
         for (auto i = 0; i < max_x - quilt.x; i++)
             for (auto j = 0; j < max_y - quilt.y; j++) {
-                if (!mask[i][j])
+                if (!mask[i, j])
                     continue;
 
                 auto offset = Coordinate { i, j };
@@ -205,11 +207,11 @@ public:
         return random_overlapping_patch(quxel, K, compute_ssd);
     }
 
+    template <bool vertical_seam>
     [[gnu::flatten]] std::vector<Coordinate> find_seam(
         Coordinate quxel,
         Coordinate texel,
-        Coordinate overlap,
-        bool vertical_seam = true) const
+        Coordinate overlap) const
     {
         auto max_quxel = quxel + overlap;
         auto max_texel = texel + overlap;
@@ -217,11 +219,16 @@ public:
         max_quxel.x = std::min(max_quxel.x, m_quilt.width());
         max_quxel.y = std::min(max_quxel.y, m_quilt.height());
 
-        auto seam_height = max_quxel.y - quxel.y;
-        auto seam_width = max_quxel.x - quxel.x;
+        auto seam_height = 0;
+        auto seam_width = 0;
 
-        if (!vertical_seam)
-            std::swap(seam_height, seam_width);
+        if constexpr (vertical_seam) {
+            seam_height = max_quxel.y - quxel.y;
+            seam_width = max_quxel.x - quxel.x;
+        } else {
+            seam_height = max_quxel.x - quxel.x;
+            seam_width = max_quxel.y - quxel.y;
+        }
 
         if (seam_height == 0 || seam_width == 0)
             return {};
@@ -291,27 +298,32 @@ public:
 
     [[gnu::flatten]] auto find_mask(Coordinate quxel, Coordinate texel, int max_x, int max_y) const
     {
-        auto mask = std::vector<std::vector<u_char>>(m_patch, std::vector<u_char>(m_patch, 1));
+        auto mask = multivec<u_char>(m_patch, m_patch, 1);
 
-        if (quxel.x >= m_chunk) {
-            auto overlap = Coordinate { m_overlap, max_y - quxel.y };
-            auto seam = find_seam(quxel, texel, overlap);
-
-            if (seam.size())
-                for (auto&& pixel : seam)
-                    for (auto i = 0; i <= pixel.x; i++)
-                        mask[i][pixel.y] = 0;
-        }
-
-        if (quxel.y >= m_chunk) {
-            auto overlap = Coordinate { max_x - quxel.x, m_overlap };
-            auto seam = find_seam(quxel, texel, overlap, false);
+        auto mask_seam = [&]<bool B>(Coordinate overlap) {
+            auto seam = find_seam<B>(quxel, texel, overlap);
 
             if (seam.size())
-                for (auto&& pixel : seam)
-                    for (auto i = 0; i <= pixel.y; i++)
-                        mask[pixel.x][i] = 0;
-        }
+                for (auto&& pixel : seam) {
+                    auto max = B ? pixel.x : pixel.y;
+
+                    for (auto i = 0; i <= max; i++) {
+                        if constexpr (B) {
+                            mask[i, pixel.y] = 0;
+                        } else {
+                            mask[pixel.x, i] = 0;
+                        }
+                    }
+                }
+        };
+
+        auto delta = max - quxel;
+
+        if (quxel.x >= m_chunk)
+            mask_seam.template operator()<VERTICAL_SEAM>({ m_overlap, delta.y });
+
+        if (quxel.y >= m_chunk)
+            mask_seam.template operator()<HORIZONTAL_SEAM>({ delta.x, m_overlap });
 
         return mask;
     }
