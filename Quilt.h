@@ -12,6 +12,46 @@ std::mt19937 g_mtgen(g_rd());
 
 int random(int max) { return std::uniform_int_distribution<>(0, max)(g_mtgen); }
 
+template <typename T>
+class multivec {
+private:
+    std::vector<T> m_vec;
+    size_t m_width;
+    size_t m_height;
+
+public:
+    multivec(auto width, auto height)
+        : m_width(width)
+        , m_height(height)
+    {
+        m_vec.reserve(width * height);
+    }
+
+    multivec(auto width, auto height, T fill)
+        : multivec(width, height)
+    {
+        m_vec = decltype(m_vec)(width * height, fill);
+    }
+
+    template<typename Numeric>
+    T& operator[](Numeric idx) {
+        return m_vec[idx];
+    }
+
+    template<typename Numeric>
+    T& operator[](Numeric i, Numeric j) {
+        auto idx = i + j * m_width;
+
+        return m_vec[idx];
+    }
+
+    T& operator[](Coordinate coord) {
+        auto idx = coord.x + coord.y * m_width;
+
+        return m_vec[idx];
+    }
+};
+
 struct SSD {
     int ssd;
     Coordinate coord;
