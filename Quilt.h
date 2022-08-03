@@ -20,6 +20,8 @@ struct SSD {
     friend bool operator>(SSD const& a, SSD const& b) { return a.ssd > b.ssd; }
 };
 
+class MultiQuilt;
+
 class Quilt {
 protected:
     Image const& m_texture;
@@ -28,6 +30,8 @@ protected:
     int m_patch;
     int m_overlap;
     int m_chunk;
+
+    friend class MultiQuilt;
 
 public:
     static constexpr int SYNTHESIS_RANDOM = 1;
