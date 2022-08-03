@@ -144,7 +144,7 @@ public:
 
             m_patch = static_cast<int>((2. / 3.) * m_patch);
 
-            if (m_patch < 6)
+            if (m_patch <= 3)
                 return;
 
             m_overlap = std::max(m_patch / 6, 3);
