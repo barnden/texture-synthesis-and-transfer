@@ -1,12 +1,17 @@
 #pragma once
 
 #include <algorithm>
+#include <condition_variable>
+#include <deque>
+#include <mutex>
 #include <queue>
 #include <random>
+#include <thread>
+#include <unordered_set>
 #include <vector>
 
-#include "Utility.h"
 #include "Image.h"
+#include "Utility.h"
 
 class MultiQuilt;
 
@@ -18,6 +23,22 @@ protected:
     int m_patch;
     int m_overlap;
     int m_chunk;
+
+    std::vector<std::thread> m_pool;
+
+    std::queue<Coordinate> m_queue;
+    std::mutex m_queue_mtx;
+    std::condition_variable m_queue_convar;
+
+    std::deque<int> m_status;
+    std::mutex m_status_mtx;
+    size_t m_total_completed {};
+    bool m_completed {};
+
+    std::mutex m_copy_mtx;
+
+    size_t m_max_chunk_x;
+    size_t m_max_chunk_y;
 
     friend class MultiQuilt;
 
@@ -32,7 +53,10 @@ public:
 
     Quilt(Image const& texture, int width, int height)
         : m_quilt(width, height)
-        , m_texture(texture) {};
+        , m_texture(texture)
+    {
+        m_queue.push({ 0, 0 });
+    }
 
     [[gnu::flatten]] void copy_patch(Coordinate quilt, Coordinate texture)
     {
@@ -46,7 +70,7 @@ public:
             }
     }
 
-    template<typename T>
+    template <typename T>
     [[gnu::flatten, gnu::hot]] void copy_patch(Coordinate quilt, Coordinate texture, multivec<T> mask)
     {
         auto max_y = std::min(m_quilt.height(), quilt.y + m_patch);
@@ -279,62 +303,203 @@ public:
     template <size_t flag>
     [[gnu::hot]] void create_patch_at(Coordinate quxel, Coordinate max, int K)
     {
-        if (!(quxel.x || quxel.y))
-            return copy_patch(quxel, random_patch());
+        if constexpr (flag == Quilt::SYNTHESIS_RANDOM) {
+            auto copy_lock = std::unique_lock<std::mutex>(m_copy_mtx);
 
-        if constexpr (flag == SYNTHESIS_RANDOM) {
             copy_patch(quxel, random_patch());
         } else {
             auto patch = random_overlapping_patch(quxel, K);
 
-            if constexpr (flag == SYNTHESIS_SIMPLE) {
+            if constexpr (flag == Quilt::SYNTHESIS_SIMPLE) {
+                auto copy_lock = std::unique_lock<std::mutex>(m_copy_mtx);
+
                 copy_patch(quxel, patch);
             }
 
-            if constexpr (flag == SYNTHESIS_CUT) {
+            if constexpr (flag == Quilt::SYNTHESIS_CUT) {
                 auto mask = find_mask(quxel, patch, max);
+                auto copy_lock = std::unique_lock<std::mutex>(m_copy_mtx);
+
                 copy_patch(quxel, patch, mask);
             }
         }
     }
 
+    void add_patch(Coordinate patch)
+    {
+#if DBGLN
+        std::cout << "[MultiQueue] Enqueuing Q" << patch << '\n';
+#endif
+
+        {
+            auto lock = std::unique_lock<std::mutex>(m_queue_mtx);
+            m_queue.push(patch);
+        }
+
+        m_queue_convar.notify_one();
+    }
+
     template <size_t flag>
-    [[gnu::flatten]] void synthesize(int patch_sz, int overlap_sz, int K)
+    void worker(int const K)
+    {
+        while (true) {
+            auto chunk = Coordinate {};
+
+            {
+                auto lock = std::unique_lock<std::mutex> { m_queue_mtx };
+
+                m_queue_convar.wait(lock, [this] -> bool {
+                    return !m_queue.empty() || m_completed;
+                });
+
+                if (m_completed)
+                    return;
+
+                chunk = m_queue.front();
+                m_queue.pop();
+            }
+
+            {
+                auto lock = std::unique_lock<std::mutex> { m_status_mtx };
+
+                auto& status = m_status[chunk.x + chunk.y * m_max_chunk_x];
+
+                // Avoid working on in-progress or completed patches
+                if (status != -1)
+                    continue;
+
+                status = 0;
+            }
+
+            auto const quxel = Coordinate {
+                chunk.x * m_chunk,
+                chunk.y * m_chunk
+            };
+
+            auto const boundary = Coordinate {
+                std::min(m_quilt.width() - 1, quxel.x + m_patch),
+                std::min(m_quilt.height() - 1, quxel.y + m_patch)
+            };
+
+            if (!(quxel.x || quxel.y)) {
+                auto copy_lock = std::unique_lock<std::mutex>(m_copy_mtx);
+
+                copy_patch(quxel, random_patch());
+            } else {
+                create_patch_at<flag>(quxel, boundary, K);
+            }
+
+            {
+                auto lock = std::unique_lock<std::mutex>(m_status_mtx);
+
+                m_status[chunk.x + chunk.y * m_max_chunk_x] = 1;
+                m_total_completed++;
+            }
+
+#if DBGLN
+            std::cout << "[MultiQueue] Finished Q" << chunk << " progress: " << m_total_completed << '/' << m_status.size() << '\n';
+#endif
+
+            if (chunk.x < m_max_chunk_x - 1) {
+                auto top_right = chunk + Coordinate { 1, -1 };
+
+                if (is_patch_complete(top_right))
+                    add_patch(chunk + Coordinate { 1, 0 });
+            }
+
+            if (chunk.y < m_max_chunk_y - 1) {
+                auto bottom_left = chunk + Coordinate { -1, 1 };
+
+                if (is_patch_complete(bottom_left))
+                    add_patch(chunk + Coordinate { 0, 1 });
+            }
+
+            if (!chunk.x && chunk.y < m_max_chunk_y - 1) {
+                // Chunk along left edge, and not at bottom edge
+                add_patch(chunk + Coordinate { 0, 1 });
+            }
+
+            if (!chunk.y && chunk.x < m_max_chunk_x - 1) {
+                // Chunk along top edge, and not at right edge
+                add_patch(chunk + Coordinate { 1, 0 });
+            }
+        }
+    }
+
+    void synthesize(int patch_sz, int overlap_sz, int K, int flag = SYNTHESIS_CUT)
     {
         assert(patch_sz > overlap_sz);
 
         m_patch = patch_sz;
         m_overlap = overlap_sz;
-        m_chunk = m_patch - m_overlap;
+        m_chunk = patch_sz - overlap_sz;
 
-        auto max_chunk_y = m_quilt.height() / m_chunk + (m_quilt.height() % m_chunk != 0);
-        auto max_chunk_x = m_quilt.width() / m_chunk + (m_quilt.width() % m_chunk != 0);
+        m_max_chunk_y = (m_quilt.height() / m_chunk) + (m_quilt.height() % m_chunk != 0);
+        m_max_chunk_x = (m_quilt.width() / m_chunk) + (m_quilt.width() % m_chunk != 0);
 
-        for (auto u = 0; u < max_chunk_y; u++) {
-            auto y = u * m_chunk;
-            auto max_y = std::min(m_quilt.height() - 1, y + m_patch);
+        m_status = std::deque<int>(m_max_chunk_x * m_max_chunk_y, -1);
 
-            for (auto v = 0; v < max_chunk_x; v++) {
-                auto x = v * m_chunk;
-                auto max_x = std::min(m_quilt.width() - 1, x + m_patch);
+        auto const max_threads = std::thread::hardware_concurrency();
+        m_pool = decltype(m_pool) {};
 
-                create_patch_at<flag>({ x, y }, { max_x, max_y }, K);
-            }
+        for (auto i = 0; i < max_threads; i++) {
+            m_pool.push_back(std::thread([this, flag, K] -> void {
+                switch (flag) {
+                case Quilt::SYNTHESIS_RANDOM:
+                    return this->worker<Quilt::SYNTHESIS_RANDOM>(K);
+
+                case Quilt::SYNTHESIS_SIMPLE:
+                    return this->worker<Quilt::SYNTHESIS_SIMPLE>(K);
+
+                default:
+                    return this->worker<Quilt::SYNTHESIS_CUT>(K);
+                }
+            }));
         }
+
+        while (is_busy()) { };
+
+        cleanup();
     }
 
-    [[gnu::flatten]] void synthesize(int patch_sz, int overlap_sz, int K, int flag = SYNTHESIS_CUT)
+    bool is_patch_complete(Coordinate patch)
     {
-        switch (flag) {
-        case SYNTHESIS_RANDOM:
-            return synthesize<SYNTHESIS_RANDOM>(patch_sz, overlap_sz, K);
+        auto status = false;
 
-        case SYNTHESIS_SIMPLE:
-            return synthesize<SYNTHESIS_SIMPLE>(patch_sz, overlap_sz, K);
-
-        default:
-            return synthesize<SYNTHESIS_CUT>(patch_sz, overlap_sz, K);
+        {
+            auto lock = std::unique_lock<std::mutex>(m_status_mtx);
+            status = m_status[patch.x + patch.y * m_max_chunk_x] == 1;
         }
+
+        return status;
+    }
+
+    bool is_busy()
+    {
+        auto busy = false;
+
+        {
+            auto lock = std::unique_lock<std::mutex>(m_status_mtx);
+
+            busy = m_total_completed < m_status.size();
+        }
+
+        return busy;
+    }
+
+    void cleanup()
+    {
+        {
+            auto lock = std::unique_lock<std::mutex>(m_queue_mtx);
+            m_completed = true;
+        }
+
+        m_queue_convar.notify_all();
+
+        for (auto&& thread : m_pool)
+            thread.join();
+
+        m_pool.clear();
     }
 
     void write(std::string const& filename) const { m_quilt.write(filename); }

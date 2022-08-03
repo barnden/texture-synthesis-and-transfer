@@ -1,7 +1,7 @@
 #include <iostream>
 #include <random>
 
-#include "MultiQuilt.h"
+#include "Quilt.h"
 #include "Transfer.h"
 
 #include <getopt.h>
@@ -90,7 +90,7 @@ int main(int argc, char** argv)
     auto texture = Image(texture_path);
     if (constraint_path.empty()) {
         // Texture synthesis if no constraint
-        auto quilt = MultiQuilt(texture, width, height);
+        auto quilt = Quilt(texture, width, height);
 
         quilt.synthesize(patch_size, overlap, samples, method);
 
