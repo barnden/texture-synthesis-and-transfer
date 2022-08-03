@@ -120,6 +120,15 @@ public:
     }
 
     size_t size() const { return m_vec.size(); }
+
+    void clear() { m_vec.clear(); }
+
+    void fill(T value)
+    {
+        clear();
+
+        m_vec = decltype(m_vec)(m_width * m_height, value);
+    }
 };
 
 struct SSD {
