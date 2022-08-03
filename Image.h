@@ -32,9 +32,22 @@ public:
         return *this;
     }
 
+    Coordinate& operator-=(Coordinate const& rhs)
+    {
+        x -= rhs.x;
+        y -= rhs.y;
+
+        return *this;
+    }
+
     Coordinate operator+(Coordinate const& rhs) const
     {
         return Coordinate { *this } += rhs;
+    }
+
+    Coordinate operator-(Coordinate const& rhs) const
+    {
+        return Coordinate { *this } -= rhs;
     }
 
     friend std::ostream& operator<<(std::ostream& stream, Coordinate const& coord)
