@@ -154,4 +154,15 @@ public:
             transfer(K);
         }
     }
+
+    void write(std::string const& filename)
+    {
+        auto pixels = m_quilt.width() * m_quilt.height();
+
+        for (auto x = 0; x < m_quilt.width(); x++)
+            for (auto y = 0; y < m_quilt.height(); y++)
+                m_quilt[x, y].ch.a = m_constraint[x, y].ch.a;
+
+        m_quilt.write(filename);
+    }
 };
