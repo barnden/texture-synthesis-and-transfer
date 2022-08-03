@@ -296,7 +296,7 @@ public:
         return seam;
     }
 
-    [[gnu::flatten]] auto find_mask(Coordinate quxel, Coordinate texel, int max_x, int max_y) const
+    [[gnu::flatten, gnu::hot]] auto find_mask(Coordinate quxel, Coordinate texel, Coordinate max) const
     {
         auto mask = multivec<u_char>(m_patch, m_patch, 1);
 
@@ -344,7 +344,7 @@ public:
             }
 
             if constexpr (flag == SYNTHESIS_CUT) {
-                auto mask = find_mask(quxel, patch, max.x, max.y);
+                auto mask = find_mask(quxel, patch, max);
                 copy_patch(quxel, patch, mask);
             }
         }

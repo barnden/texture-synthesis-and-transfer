@@ -51,7 +51,7 @@ public:
             }
 
             if constexpr (flag == Quilt::SYNTHESIS_CUT) {
-                auto mask = m_quilt.find_mask(quxel, patch, max.x, max.y);
+                auto mask = m_quilt.find_mask(quxel, patch, max);
                 auto copy_lock = std::unique_lock<std::mutex>(m_copy_mtx);
 
                 m_quilt.copy_patch(quxel, patch, mask);
