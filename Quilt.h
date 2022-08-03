@@ -81,20 +81,14 @@ public:
     }
 
     template <bool use_subtraction, typename Metric>
-    [[gnu::always_inline]] void compute_ssd(
-        Metric&& compute_metric,
-        auto& ssd,
-        auto const& quxel,
-        auto const& patch,
-        auto const init_u,
-        auto const init_v) const
+    [[gnu::always_inline]] void compute_metric(
+        Metric&& metric, auto& ssd,
+        auto const& quxel, auto const& patch,
+        auto const max_u, auto const max_v) const
     {
-        auto const max_u = std::min(init_u, m_quilt.width() - quxel.x);
-        auto const max_v = std::min(init_v, m_quilt.height() - quxel.y);
-
         for (auto u = 0; u < max_u; u++) {
             for (auto v = 0; v < max_v; v++) {
-                auto const value = compute_metric(quxel, patch, { u, v });
+                auto const value = metric(quxel, patch, { u, v });
 
                 if constexpr (use_subtraction) {
                     ssd -= value;
@@ -103,6 +97,18 @@ public:
                 }
             }
         }
+    }
+
+    template <bool use_subtraction, typename Metric>
+    [[gnu::always_inline]] void compute_ssd(
+        Metric&& metric, auto& ssd,
+        auto const& quxel, auto const& patch,
+        auto const init_u, auto const init_v) const
+    {
+        auto const max_u = std::min(init_u, m_quilt.width() - quxel.x);
+        auto const max_v = std::min(init_v, m_quilt.height() - quxel.y);
+
+        compute_metric<use_subtraction>(metric, ssd, quxel, patch, max_u, max_v);
     }
 
     template <typename Metric>
