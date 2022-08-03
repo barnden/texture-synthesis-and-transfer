@@ -5,13 +5,14 @@
 class Transfer : public Quilt {
 private:
     Image const& m_constraint;
+    double m_alpha {};
 
 public:
     Transfer(Image const& texture, Image const& constraint)
         : Quilt(texture, constraint.width(), constraint.height())
         , m_constraint(constraint) {};
 
-    [[gnu::flatten, gnu::hot]] Coordinate random_overlapping_patch(Coordinate const& quxel, double alpha, int K) const
+    [[gnu::flatten, gnu::hot]] Coordinate random_overlapping_patch(Coordinate const& quxel, int K) const override
     {
         auto const top_overlap = quxel.y >= m_chunk;
         auto const left_overlap = quxel.x >= m_chunk;
@@ -55,7 +56,7 @@ public:
                     },
                     error, quxel, patch, max.x, max.y);
 
-                auto ssd = static_cast<int>(alpha * overlap) + static_cast<int>((1. - alpha) * error);
+                auto ssd = static_cast<int>(m_alpha * overlap) + static_cast<int>((1. - m_alpha) * error);
 
                 if (queue.size() < K || queue.top().ssd > ssd) {
                     if (queue.size() == K)
@@ -101,29 +102,25 @@ public:
         return min_ssd_coord;
     }
 
-    [[gnu::flatten]] void transfer(double alpha, int K)
+    [[gnu::flatten]] void transfer(int K)
     {
         m_chunk = m_patch - m_overlap;
 
-        auto max_chunk_y = (m_quilt.height() / m_chunk) + (m_quilt.height() % m_chunk != 0);
-        auto max_chunk_x = (m_quilt.width() / m_chunk) + (m_quilt.width() % m_chunk != 0);
+        m_max_chunk_y = (m_quilt.height() / m_chunk) + (m_quilt.height() % m_chunk != 0);
+        m_max_chunk_x = (m_quilt.width() / m_chunk) + (m_quilt.width() % m_chunk != 0);
 
-        for (auto u = 0; u < max_chunk_y; u++) {
+        for (auto u = 0; u < m_max_chunk_y; u++) {
             auto y = u * m_chunk;
             auto max_y = std::min(m_quilt.height() - 1, y + m_patch);
 
-            for (auto v = 0; v < max_chunk_x; v++) {
+            for (auto v = 0; v < m_max_chunk_x; v++) {
                 auto x = v * m_chunk;
                 auto max_x = std::min(m_quilt.width() - 1, x + m_patch);
 
                 auto quxel = Coordinate { x, y };
 
-                if (u || v) {
-                    auto patch = random_overlapping_patch(quxel, alpha, K);
-                    auto mask = find_mask(quxel, patch, { max_x, max_y });
-
-                    copy_patch(quxel, patch, mask);
-                }
+                if (u || v)
+                    create_patch_at<SYNTHESIS_CUT>(quxel, { max_x, max_y }, K);
             }
         }
     }
@@ -137,10 +134,11 @@ public:
         copy_patch({}, seed_patch());
 
         // Perform first pass using alpha = 0.1
-        transfer(0.1, K);
+        m_alpha = 0.1;
+        transfer(K);
 
         for (auto i = 1; i < N; i++) {
-            auto alpha = .8 * (i / static_cast<double>(N - 1)) + .1;
+            m_alpha = .8 * (i / static_cast<double>(N - 1)) + .1;
 
             m_patch = static_cast<int>((2. / 3.) * m_patch);
 
@@ -149,7 +147,7 @@ public:
 
             m_overlap = std::max(m_patch / 6, 3);
 
-            transfer(alpha, K);
+            transfer(K);
         }
     }
 };
