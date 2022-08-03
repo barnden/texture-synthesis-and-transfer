@@ -340,7 +340,7 @@ public:
     }
 
     template <size_t flag>
-    void worker(int const K)
+    void worker(int const K, bool seed_output = true)
     {
         while (true) {
             auto chunk = Coordinate {};
@@ -381,7 +381,7 @@ public:
                 std::min(m_quilt.height() - 1, quxel.y + m_patch)
             };
 
-            if (!(quxel.x || quxel.y)) {
+            if (seed_output && !(quxel.x || quxel.y)) {
                 auto copy_lock = std::unique_lock<std::mutex>(m_copy_mtx);
 
                 copy_patch(quxel, random_patch());
