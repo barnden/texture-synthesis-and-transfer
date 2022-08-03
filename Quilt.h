@@ -53,7 +53,7 @@ public:
     }
 
     template <typename Mask>
-    [[gnu::flatten]] void copy_patch(Coordinate quilt, Coordinate texture, Mask mask)
+    [[gnu::flatten, gnu::hot]] void copy_patch(Coordinate quilt, Coordinate texture, Mask mask)
     {
         auto max_y = std::min(m_quilt.height(), quilt.y + m_patch);
         auto max_x = std::min(m_quilt.width(), quilt.x + m_patch);
@@ -267,8 +267,11 @@ public:
     }
 
     template <size_t flag>
-    void create_patch_at(Coordinate quxel, Coordinate max, int K)
+    [[gnu::hot]] void create_patch_at(Coordinate quxel, Coordinate max, int K)
     {
+        if (!(quxel.x || quxel.y))
+            return copy_patch(quxel, random_patch());
+
         if constexpr (flag == SYNTHESIS_RANDOM) {
             copy_patch(quxel, random_patch());
         } else {
