@@ -11,24 +11,17 @@ public:
         : Quilt(texture, constraint.width(), constraint.height())
         , m_constraint(constraint) {};
 
-    [[gnu::flatten]] Coordinate random_overlapping_patch(Coordinate const& quxel, double alpha, int K) const
+    [[gnu::flatten, gnu::hot]] Coordinate random_overlapping_patch(Coordinate const& quxel, double alpha, int K) const
     {
         auto const top_overlap = quxel.y >= m_chunk;
         auto const left_overlap = quxel.x >= m_chunk;
         auto const corner_overlap = left_overlap && top_overlap;
 
-        auto ssd_metric = [this](Coordinate const& quxel, Coordinate const& texel, Coordinate const& coord) {
+        auto const ssd_metric = [this](Coordinate const& quxel, Coordinate const& texel, Coordinate const& coord) {
             auto const& texture = m_texture[texel + coord];
             auto const& quilt = m_quilt[quxel + coord];
 
             return squared_difference(texture, quilt);
-        };
-
-        auto error_metric = [this](Coordinate const& quxel, Coordinate const& texel, Coordinate const& coord) {
-            auto const& texture = m_texture[texel + coord];
-            auto const& constraint = m_constraint[quxel + coord];
-
-            return squared_difference(texture, constraint);
         };
 
         auto queue = std::priority_queue<SSD, std::vector<SSD>, std::less<SSD>> {};
@@ -47,11 +40,20 @@ public:
                 if (corner_overlap)
                     compute_ssd<SSD_USE_SUBTRACTION>(ssd_metric, overlap, quxel, patch, m_overlap, m_overlap);
 
-                auto max_u = std::min(m_quilt.width(), quxel.x + m_patch);
-                auto max_v = std::min(m_quilt.height(), quxel.y + m_patch);
+                auto max = Coordinate {
+                    std::min(m_quilt.width(), quxel.x + m_patch),
+                    std::min(m_quilt.height(), quxel.y + m_patch)
+                } - quxel;
                 auto error = 0;
 
-                compute_metric<SSD_USE_ADDITION>(error_metric, error, quxel, patch, max_u, max_v);
+                compute_metric<SSD_USE_ADDITION>(
+                    [this](Coordinate const& quxel, Coordinate const& texel, Coordinate const& coord) {
+                        auto const& texture = m_texture[texel + coord];
+                        auto const& constraint = m_constraint[quxel + coord];
+
+                        return squared_difference(texture, constraint);
+                    },
+                    error, quxel, patch, max.x, max.y);
 
                 auto ssd = static_cast<int>(alpha * overlap) + static_cast<int>((1. - alpha) * error);
 
@@ -74,7 +76,7 @@ public:
         return queue.top().coord;
     }
 
-    [[gnu::flatten]] Coordinate seed_patch() const
+    [[gnu::flatten, gnu::cold]] Coordinate seed_patch() const
     {
         auto const& reference = m_constraint[{}];
         auto min_ssd = std::numeric_limits<uint64_t>::max();
@@ -128,7 +130,7 @@ public:
 
     [[gnu::flatten]] void synthesize(int patch_sz, int N, int K)
     {
-        m_patch = patch_sz;
+        m_patch = std::max(patch_sz, 6);
         m_overlap = std::max(m_patch / 6, 3);
 
         // Pick the closest match to the top-left patch in constraint from texture
@@ -139,7 +141,12 @@ public:
 
         for (auto i = 1; i < N; i++) {
             auto alpha = .8 * (i / static_cast<double>(N - 1)) + .1;
+
             m_patch = static_cast<int>((2. / 3.) * m_patch);
+
+            if (m_patch < 6)
+                return;
+
             m_overlap = std::max(m_patch / 6, 3);
 
             transfer(alpha, K);
